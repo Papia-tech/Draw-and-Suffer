@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROOT_ACCESS_TERMINAL</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        /* --- CORE STYLES --- */
+        * {
+            box-sizing: border-box;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100vh;
+            background-color: #000;
+            color: #0f0;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden;
+        }
+
+        #term-body::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        #term-body::-webkit-scrollbar-track {
+            background: #000;
+        }
+
+        #term-body::-webkit-scrollbar-thumb {
+            background: #0f0;
+            border-radius: 10px;
+        }
+
+        .crash-bg #term-body::-webkit-scrollbar-thumb {
+            background: #f00 !important;
+        }
+
+        canvas#matrix {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            opacity: 0.6;
+        }
+
+        #terminal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 850px;
+            height: 550px;
+            background: rgba(0, 10, 0, 0.95);
+            border: 1px solid #0f0;
+            z-index: 10;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        /* --- TABS --- */
+        .tab-bar {
+            display: flex;
+            background: #1a1a1a;
+            border-bottom: 1px solid #333;
+            padding-top: 4px;
+        }
+
+        .tab {
+            padding: 6px 15px;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border-top: 2px solid transparent;
+            background: #0d0d0d;
+            color: #777;
+        }
+
+        .tab.active {
+            background: #1e1e1e;
+            color: #fff;
+            border-top: 2px solid #e67e22;
+        }
+
+        .tab-icon {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+
+        .icon-orange {
+            background: #e67e22;
+        }
+
+        .icon-green {
+            border: 1px solid #0f0;
+        }
+
+        /* --- CONTENT AREA --- */
+        #term-body {
+            padding: 15px;
+            flex-grow: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            font-size: 1rem;
+            line-height: 1.4;
+        }
+
+        .line {
+            margin: 0;
+            display: block;
+            word-wrap: break-word;
+        }
+
+        .prompt {
+            color: #0f0;
+            margin-right: 10px;
+        }
+
+        .hidden-input {
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-family: 'Share Tech Mono';
+            font-size: 1rem;
+            outline: none;
+            caret-color: #0f0;
+            width: 80%;
+        }
+
+        .cmd-btn {
+            display: inline-block;
+            border: 1px solid #0f0;
+            padding: 2px 10px;
+            margin-top: 10px;
+            margin-right: 10px;
+            cursor: pointer;
+            background: rgba(0, 50, 0, 0.5);
+        }
+
+        .cmd-btn:hover {
+            background: #0f0;
+            color: #000;
+        }
+
+        /* --- DRAWING CANVAS --- */
+        #canvas-container {
+            width: 100%;
+            height: 250px;
+            border: 1px dashed #0f0;
+            margin: 10px 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            overflow: hidden;
+            position: relative;
+        }
+
+        canvas#drawCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        /* --- ACCURACY & ANIMATION --- */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .accuracy-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            animation: fadeIn 0.8s ease-out forwards;
+            cursor: pointer;
+        }
+
+        .accuracy-value {
+            font-size: 6rem;
+            color: #0f0;
+            text-shadow: 0 0 20px #0f0;
+            margin: 15px 0;
+            border: 4px double #0f0;
+            padding: 10px 50px;
+        }
+
+        .rank-text {
+            font-size: 1.5rem;
+            letter-spacing: 5px;
+            margin-top: 10px;
+            color: #0f0;
+            text-transform: uppercase;
+        }
+
+        .click-prompt {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            color: #0f0;
+            animation: blink 1s infinite;
+        }
+
+        .progress-container {
+            width: 300px;
+            height: 8px;
+            border: 1px solid #0f0;
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #0f0;
+            width: 0%;
+            transition: width 1.5s linear;
+        }
+
+        /* --- CRASH / ERROR STYLES --- */
+        .crash-text {
+            color: #f00 !important;
+            text-shadow: 0 0 5px #f00;
+        }
+
+        .problem-highlight {
+            color: #e67e22 !important;
+            font-weight: bold;
+        }
+
+        .crash-border {
+            border-color: #f00 !important;
+            box-shadow: 0 0 20px #f00 !important;
+        }
+
+        .crash-bg {
+            background: rgba(20, 0, 0, 0.95) !important;
+        }
+
+        .shake-active {
+            animation: shake 0.15s linear infinite;
+        }
+
+        @keyframes shake {
+            0% { transform: translate(-50%, -50%) translate(2px, 2px); }
+            50% { transform: translate(-50%, -50%) translate(-2px, 1px); }
+            100% { transform: translate(-50%, -50%) translate(1px, -2px); }
+        }
+    </style>
+</head>
+
+<body>
+
+    <canvas id="matrix"></canvas>
+
+    <div id="terminal">
+        <div class="tab-bar">
+            <div class="tab active">
+                <span class="tab-icon icon-orange"></span>
+                <span id="filename">DRAW & SUFFER.log</span>
+            </div>
+            <div class="tab">
+                <span class="tab-icon icon-green"></span>
+                <span>score.json</span>
+            </div>
+        </div>
+        <div id="term-body"></div>
+    </div>
+
+    <script>
+        const mCanvas = document.getElementById('matrix');
+        const mCtx = mCanvas.getContext('2d');
+        mCanvas.width = window.innerWidth; mCanvas.height = window.innerHeight;
+        const chars = '01XYZE010101FUTURE';
+        const drops = Array(Math.floor(mCanvas.width / 14)).fill(1);
+        let matrixColor = "#0F0";
+
+        function drawMatrix() {
+            mCtx.fillStyle = 'rgba(0, 0, 0, 0.05)'; mCtx.fillRect(0, 0, mCanvas.width, mCanvas.height);
+            mCtx.fillStyle = matrixColor; mCtx.font = '14px monospace';
+            for (let i = 0; i < drops.length; i++) {
+                const text = chars.charAt(Math.floor(Math.random() * chars.length));
+                mCtx.fillText(text, i * 14, drops[i] * 14);
+                if (drops[i] * 14 > mCanvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            }
+        }
+        setInterval(drawMatrix, 35);
+
+        const termBody = document.getElementById('term-body');
+        const terminalWindow = document.getElementById('terminal');
+        const fileNameTab = document.getElementById('filename');
+        let userName = "";
+        let roundCount = 1;
+        let currentShape = "CIRCLE";
+        let drawPoints = [];
+
+        const shapes = ["CIRCLE", "SQUARE", "TRIANGLE", "STRAIGHT LINE", "RECTANGLE", "DIAMOND", "PENTAGON"];
+
+        const problemBank = {
+            easy: [
+                { q: "Sum of integers from 1 to 10?", a: "55" },
+                { q: "What is 5 + 7?", a: "12" },
+                { q: "What is 6 × 4?", a: "24" },
+                { q: "How many sides does a triangle have?", a: "3" },
+                { q: "What is 100 − 45?", a: "55" }
+            ],
+            medium: [
+                { q: "What is the square root of 144?", a: "12" },
+                { q: "What is 15 × 6?", a: "90" },
+                { q: "Solve: 2x + 5 = 17", a: "6" },
+                { q: "What is 7² − 5²?", a: "24" },
+                { q: "Average of 2, 4, 6, 8?", a: "5" }
+            ],
+            hard: [
+                { q: "What is the derivative of x²?", a: "2x" },
+                { q: "Solve for x: 2x + 10 = 30", a: "10" },
+                { q: "What is sin(90°)?", a: "1" },
+                { q: "Determinant of [[1,2],[3,4]]?", a: "-2" },
+                { q: "Derivative of sin(x)?", a: "cos(x)" }
+            ]
+        };
+
+        window.onload = function () {
+            const logs = ["Initializing Kernel...", "Loading Modules: temporal_displacement.ko", "Checking RAM... [OK]", "Connecting to Akasik Records... [ESTABLISHED]", "Bypassing Reality Firewall... [SUCCESS]"];
+            let delay = 0;
+            logs.forEach((l) => { setTimeout(() => addLine(`[SYSTEM] ${l}`), delay); delay += 400; });
+            setTimeout(() => {
+                addLine("<br>SYSTEM READY.");
+                termBody.appendChild(createBtn("[ START_SESSION ]", startNameInput));
+            }, delay + 500);
+        };
+
+        function addLine(text, cssClass = "line") {
+            const p = document.createElement('div');
+            p.className = cssClass; p.innerHTML = text;
+            termBody.appendChild(p);
+            termBody.scrollTop = termBody.scrollHeight;
+        }
+
+        function createBtn(text, callback) {
+            const btn = document.createElement('div');
+            btn.className = "cmd-btn"; btn.innerText = text;
+            btn.onclick = () => { btn.remove(); callback(); };
+            return btn;
+        }
+
+        function createInput(promptText, callback) {
+            const wrapper = document.createElement('div');
+            wrapper.innerHTML = `<span class="prompt">${promptText}</span>`;
+            const input = document.createElement('input');
+            input.type = "text"; input.className = "hidden-input";
+            wrapper.appendChild(input);
+            termBody.appendChild(wrapper);
+            input.focus();
+            input.onkeypress = (e) => {
+                if (e.key === "Enter") {
+                    input.disabled = true;
+                    callback(input.value);
+                }
+            };
+        }
+
+        function startNameInput() {
+            createInput("ENTER USERNAME:", (val) => {
+                userName = val.toUpperCase();
+                runHackingAnimation();
+            });
+        }
+
+        function runHackingAnimation() {
+            addLine(`<br>[PROCESS] Target Identified: ${userName}`, "line");
+            const hexTimer = setInterval(() => {
+                let hex = ""; for (let i = 0; i < 8; i++) hex += Math.floor(Math.random() * 255).toString(16).toUpperCase().padStart(2, '0') + " ";
+                addLine(`0x${Math.floor(Math.random() * 999999)}: ${hex} // DECRYPTING`, "line");
+            }, 80);
+            setTimeout(() => {
+                clearInterval(hexTimer);
+                addLine("<br>[SUCCESS] TIMELINE DECRYPTED.");
+                termBody.appendChild(createBtn("[ Y - PROCEED ]", startDrawingRound));
+            }, 2000);
+        }
+
+        function startDrawingRound() {
+            termBody.innerHTML = "";
+            drawPoints = [];
+            fileNameTab.innerText = `challenge_${roundCount}.tsx`;
+
+            addLine(`[SESSION] Target: ${userName} | Round: ${roundCount}`);
+            addLine(`[REQUEST] Draw a ${currentShape}`);
+
+            const container = document.createElement('div');
+            container.id = "canvas-container"; container.style.display = "block";
+            const canvas = document.createElement('canvas');
+            canvas.id = "drawCanvas"; container.appendChild(canvas);
+            termBody.appendChild(container);
+
+            const dCtx = canvas.getContext('2d');
+            canvas.width = container.offsetWidth - 2;
+            canvas.height = 248;
+
+            dCtx.strokeStyle = "#0f0"; dCtx.lineWidth = 3;
+            let drawing = false;
+            canvas.onmousedown = () => { drawing = true; dCtx.beginPath(); };
+            canvas.onmousemove = (e) => {
+                if (!drawing) return;
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                drawPoints.push({ x, y });
+                dCtx.lineTo(x, y);
+                dCtx.stroke();
+            };
+            window.onmouseup = () => drawing = false;
+
+            termBody.appendChild(createBtn("[ $ compile ]", () => {
+                let baseAcc = Math.floor(Math.random() * 20) + 55;
+                if (drawPoints.length < 20) baseAcc = 10;
+                const finalScore = Math.max(5, Math.min(99, baseAcc));
+                
+                showLoadingAnalysis(finalScore);
+            }));
+        }
+
+        function showLoadingAnalysis(score) {
+            termBody.innerHTML = "";
+            addLine("[SYSTEM] Extracting vector coordinates...");
+            addLine("[SYSTEM] Checking symmetry against mainframe...");
+            
+            const progressContainer = document.createElement('div');
+            progressContainer.className = "progress-container";
+            const progressBar = document.createElement('div');
+            progressBar.className = "progress-bar";
+            progressContainer.appendChild(progressBar);
+            termBody.appendChild(progressContainer);
+
+            setTimeout(() => { progressBar.style.width = "100%"; }, 100);
+            setTimeout(() => { showAccuracyScreen(score); }, 1800);
+        }
+
+        function showAccuracyScreen(score) {
+            termBody.innerHTML = "";
+
+            const screen = document.createElement('div');
+            screen.className = "accuracy-screen";
+            screen.innerHTML = `
+                <div class="line">[ ANALYSIS COMPLETE ]</div>
+                <div class="accuracy-value">${score}%</div>
+                <div class="rank-text">Coding Accuracy</div>
+                <div class="line" style="margin-top:20px">STABILITY: ${score > 70 ? 'STABLE' : 'CRITICAL'}</div>
+                <div class="click-prompt">>> CLICK SCREEN TO CONTINUE <<</div>
+            `;
+            termBody.appendChild(screen);
+
+            screen.onclick = () => {
+                triggerCrash(score);
+            };
+        }
+
+        function triggerCrash(score) {
+            matrixColor = "#F00";
+            terminalWindow.classList.add('shake-active', 'crash-border', 'crash-bg');
+            termBody.innerHTML = "";
+
+            setTimeout(() => {
+                terminalWindow.classList.remove('shake-active');
+            }, 1200);
+
+            let difficulty = score > 85 ? "easy" : (score > 60 ? "medium" : "hard");
+            const problem = problemBank[difficulty][Math.floor(Math.random() * problemBank[difficulty].length)];
+
+            addLine(`GEOMETRY_ACCURACY: ${score}%`, "crash-text line");
+            addLine(`STATUS: SYSTEM MALFUNCTION`, "crash-text line");
+            addLine("<br>ERROR: DEVIATION DETECTED. SOLVE TO UNLOCK:", "line");
+            // CHANGED: Added 'problem-highlight' class for #e67e22 color
+            addLine(`TASK: ${problem.q}`, "problem-highlight line");
+
+            const handleAnswer = (val) => {
+                if (val.toLowerCase().replace(/\s/g, '') === problem.a.toLowerCase()) {
+                    terminalWindow.classList.remove('crash-border', 'crash-bg', 'shake-active');
+                    matrixColor = "#0F0";
+                    addLine("<br>[SUCCESS] Logic verified.");
+                    roundCount++;
+                    currentShape = shapes[roundCount % shapes.length];
+                    setTimeout(startDrawingRound, 1000);
+                } else {
+                    addLine("ACCESS DENIED. TRY AGAIN.", "crash-text line");
+                    createInput("ANSWER:", handleAnswer);
+                }
+            };
+
+            createInput("ANSWER:", handleAnswer);
+        }
+    </script>
+</body>
+
+</html>
